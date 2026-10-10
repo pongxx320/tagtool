@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>标签批量生成器（拍照识别版）</title>
+<style>
+  :root{
+    --blue:#2563eb; --blue-d:#1d4ed8; --bg:#f3f5f9; --card:#ffffff;
+    --ink:#1f2937; --ink2:#6b7280; --line:#e5e7eb; --ok:#16a34a; --warn:#b45309;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.5}
+  .wrap{max-width:720px;margin:0 auto;padding:16px 14px 40px}
+  header{display:flex;align-items:center;gap:10px;padding:6px 2px 14px}
+  .logo{width:40px;height:40px;border-radius:10px;background:var(--blue);
+    color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px}
+  h1{font-size:19px;margin:0}
+  .sub{color:var(--ink2);font-size:13px;margin-top:2px}
+  .card{background:var(--card);border-radius:14px;padding:14px;margin:12px 0;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:6px}
+  .card h2 .tag{color:var(--blue);font-weight:700}
+  .grid{display:grid;gap:10px}
+  .g2{grid-template-columns:1fr 1fr}
+  label{display:block;font-size:13px;color:var(--ink2);margin-bottom:4px}
+  input[type=text],input[type=number],input[type=date]{
+    width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;
+    font-size:15px;background:#fff;color:var(--ink)}
+  input:focus{outline:none;border-color:var(--blue)}
+  .rowhead,.datarow{display:grid;grid-template-columns:52px 1fr 1fr 1fr;gap:8px;align-items:center}
+  .rowhead{font-size:12px;color:var(--ink2);padding:0 2px 6px}
+  .datarow{margin-bottom:8px}
+  .datarow input{min-width:0}
+  .btn{border:none;border-radius:9px;padding:11px 12px;font-size:15px;font-weight:600;cursor:pointer;flex:1}
+  .btn.primary{background:var(--blue);color:#fff}
+  .btn.primary:active{background:var(--blue-d)}
+  .btn.ghost{background:#eff3fb;color:var(--blue);border:1px solid #d6e2f7}
+  .btn.add{background:#fff;color:var(--blue);border:1px dashed #b6c8ee;width:100%;margin-top:2px}
+  .actions{display:flex;gap:8px;margin-top:12px}
+  .hint{font-size:12px;color:var(--ink2);margin-top:8px;line-height:1.6}
+  .upload{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .pick{background:#eff3fb;color:var(--blue);border:1px solid #d6e2f7;border-radius:9px;padding:11px 14px;font-size:15px;cursor:pointer}
+  #preview{max-width:100%;max-height:280px;border-radius:10px;display:none;margin-top:10px}
+  .recbox{background:#fafafa;border:1px solid var(--line);border-radius:9px;padding:10px;font-size:14px;white-space:pre-wrap;display:none;margin-top:8px;max-height:280px;overflow:auto}
+  .recrow{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px dashed var(--line);font-size:14px}
+  .recrow b{color:var(--blue)}
+  .warn{color:var(--warn);font-size:12px;margin-top:6px}
+  .table{width:100%;border-collapse:collapse;font-size:13px}
+  .table th,.table td{border:1px solid var(--line);padding:6px 8px;text-align:center}
+  .table th{background:#eff3fb;color:var(--blue);font-weight:600}
+  .tagprev{border:1px solid #333;width:150px;height:150px;margin:8px auto;padding:10px;
+    display:flex;flex-direction:column;justify-content:center;gap:6px;font-size:12px;text-align:center}
+  .tagprev .nm{font-weight:700;font-size:14px}
+  .tagprev .row{display:flex;justify-content:space-between}
+  .okmsg{color:var(--ok);font-size:13px;margin-top:8px;display:none}
+  ol.steps{margin:6px 0 0;padding-left:20px;font-size:14px}
+  ol.steps li{margin-bottom:6px}
+  @media(min-width:640px){
+    .g2{grid-template-columns:1fr 1fr 1fr}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">标</div>
+    <div>
+      <h1>标签批量生成器（拍照识别版）</h1>
+      <div class="sub">拍照送货单 → 识别辅助 → 核对 → 生成标签 → 导入得力打印</div>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2><span class="tag">1</span>拍照 / 上传送货单（识别参考）</h2>
+    <div class="upload">
+      <label class="pick" for="file">📷 拍照或选择照片</label>
+      <input type="file" id="file" accept="image/*" capture="environment" style="display:none">
+      <button class="btn ghost" onclick="recognize()">识别</button>
+    </div>
+    <img id="preview" alt="">
+    <div class="recbox" id="recbox"></div>
+    <div class="warn">识别在本机浏览器内完成，不经过任何服务器。首次需联网下载中文识别模型（约几十 MB），之后可反复用。识别作参考：客户名、产品名、日期较准；毛重/净重等数字请对照照片核对后再填写。</div>
+  </div>
+
+  <div class="card">
+    <h2><span class="tag">2</span>基本信息</h2>
+    <div class="grid g2">
+      <div>
+        <label>客户名称</label>
+        <input type="text" id="customer" value="倍特尔" placeholder="如：倍特尔">
+      </div>
+      <div>
+        <label>产品名称</label>
+        <input type="text" id="product" value="HL211" placeholder="如：HL211">
+      </div>
+      <div>
+        <label>生产日期（默认今天）</label>
+        <input type="text" id="pdate" placeholder="如：2026年10月10日">
+      </div>
+    </div>
+    <div style="margin-top:10px">
+      <label>每箱管数 / 桶数（同一箱就填一个，不同可逐行改）</label>
+      <input type="number" id="qty" value="14" min="0" style="max-width:180px">
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="tag">3</span>逐箱数据（一行 = 一箱）</h2>
+    <div class="rowhead">
+      <span>序号</span><span>毛重(kg)</span><span>净重(kg)</span><span>管数</span>
+    </div>
+    <div id="rows"></div>
+    <button class="btn add" onclick="addRow()">＋ 添加一箱</button>
+  </div>
+
+  <div class="card">
+    <h2><span class="tag">4</span>生成标签数据</h2>
+    <div class="actions">
+      <button class="btn primary" onclick="genData()">生成数据</button>
+      <button class="btn ghost" onclick="copyData()">复制</button>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" onclick="downloadCSV()">下载 CSV</button>
+      <button class="btn ghost" id="btnXlsx" onclick="downloadXlsx()">下载 Excel</button>
+    </div>
+    <div class="okmsg" id="okmsg"></div>
+    <div class="hint" id="hint">先点「生成数据」，再下载文件；把文件导入得力 App 的「EXCEL导入」即可批量打印。</div>
+  </div>
+
+  <div class="card">
+    <h2><span class="tag">5</span>生成的标签数据</h2>
+    <table class="table" id="preview">
+      <thead><tr><th>客户</th><th>产品</th><th>序号</th><th>毛重</th><th>净重</th><th>管数</th><th>生产日期</th></tr></thead>
+      <tbody id="ptb"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2><span class="tag">6</span>标签预览（第 1 箱效果）</h2>
+    <div class="tagprev" id="tagprev">
+      <div class="nm">产品名称：HL211</div>
+      <div class="row"><span>收货单位：</span><span>倍特尔</span></div>
+      <div class="row"><span>毛重：</span><span>--</span></div>
+      <div class="row"><span>净重：</span><span>--</span></div>
+      <div class="row"><span>桶数：</span><span>--</span></div>
+      <div class="row"><span>生产日期：</span><span>--</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>使用说明</h2>
+    <ol class="steps">
+      <li>拍照送货单，点「识别」，参考识别出的文字核对客户/产品/日期。</li>
+      <li>逐箱填毛重/净重/管数（对照送货单照片核对）。</li>
+      <li>点「生成数据」，核对表格无误。</li>
+      <li>「下载 CSV」或「下载 Excel」保存到手机。</li>
+      <li>得力 DL-750W App → 货物标签模板 → 「EXCEL导入」该文件 → 核对字段 → 打印。</li>
+      <li>识别与生成全在本机浏览器内完成，不经过服务器，数据不外传。</li>
+    </ol>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+  var data = [];
+
+  function fmtDate(d){
+    var y=d.getFullYear(),m=d.getMonth()+1,day=d.getDate();
+    return y+"年"+String(m).padStart(2,'0')+"月"+String(day).padStart(2,'0')+"日";
+  }
+
+  function addRow(n, kw, nw){
+    var rows=document.getElementById('rows');
+    var div=document.createElement('div');
+    div.className='datarow';
+    div.innerHTML=
+      '<input type="number" class="idx" value="'+(rows.children.length+1)+'" min="1">'+
+      '<input type="text" class="kw" value="'+(kw||'')+'">'+
+      '<input type="text" class="nw" value="'+(nw||'')+'">'+
+      '<input type="number" class="qt" value="'+(document.getElementById('qty').value||'')+'">';
+    rows.appendChild(div);
+  }
+  function reIndex(){
+    var rs=document.querySelectorAll('#rows .datarow');
+    rs.forEach(function(r,i){r.querySelector('.idx').value=i+1;});
+  }
+
+  document.getElementById('file').addEventListener('change',function(){
+    var f=this.files[0]; if(!f) return;
+    var rd=new FileReader();
+    rd.onload=function(){var p=document.getElementById('preview');p.src=rd.result;p.style.display='block';};
+    rd.readAsDataURL(f);
+  });
+
+  function recognize(){
+    var f=document.getElementById('file').files[0];
+    if(!f){alert('请先拍照或选照片');return;}
+    var box=document.getElementById('recbox');
+    box.style.display='block';
+    box.innerHTML='识别中…（首次需下载中文模型，约几十MB，请耐心等待）';
+    if(typeof Tesseract==='undefined'){
+      box.textContent='识别引擎未加载，请检查网络后刷新页面重试。'; return;
+    }
+    Tesseract.recognize(f,'chi_sim',{logger:function(m){}})
+      .then(function(r){
+        var lines=r.data.lines.map(function(l){return l.text;});
+        box.innerHTML='';
+        lines.forEach(function(t){
+          if(!t) return;
+          var d=document.createElement('div'); d.className='recrow';
+          d.innerHTML='<b>'+t.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</b>';
+          box.appendChild(d);
+        });
+        if(!lines.length) box.textContent='未识别到文字（照片可能太糊或方向不正）。';
+      })
+      .catch(function(e){ box.textContent='识别失败：'+e; });
+  }
+
+  function collect(){
+    var customer=document.getElementById('customer').value.trim()||'';
+    var product=document.getElementById('product').value.trim()||'';
+    var pdate=document.getElementById('pdate').value.trim()||fmtDate(new Date());
+    var qtyDef=document.getElementById('qty').value;
+    var rows=document.querySelectorAll('#rows .datarow');
+    var list=[];
+    rows.forEach(function(r){
+      var kw=r.querySelector('.kw').value.trim();
+      var nw=r.querySelector('.nw').value.trim();
+      var qt=r.querySelector('.qt').value.trim()||qtyDef;
+      var idx=r.querySelector('.idx').value;
+      list.push({customer:customer,product:product,idx:idx,kw:kw,nw:nw,qt:qt,pdate:pdate});
+    });
+    return list;
+  }
+
+  function genData(){
+    data=collect();
+    var tb=document.getElementById('ptb');
+    tb.innerHTML='';
+    data.forEach(function(d){
+      var tr=document.createElement('tr');
+      tr.innerHTML='<td>'+d.customer+'</td><td>'+d.product+'</td><td>'+d.idx+'</td><td>'+
+        d.kw+'</td><td>'+d.nw+'</td><td>'+d.qt+'</td><td>'+d.pdate+'</td>';
+      tb.appendChild(tr);
+    });
+    var p=document.getElementById('tagprev');
+    if(data.length){
+      var d=data[0];
+      p.innerHTML=
+        '<div class="nm">产品名称：'+d.product+'</div>'+
+        '<div class="row"><span>收货单位：</span><span>'+d.customer+'</span></div>'+
+        '<div class="row"><span>毛重：</span><span>'+d.kw+'</span></div>'+
+        '<div class="row"><span>净重：</span><span>'+d.nw+'</span></div>'+
+        '<div class="row"><span>桶数：</span><span>'+d.qt+'</span></div>'+
+        '<div class="row"><span>生产日期：</span><span>'+d.pdate+'</span></div>';
+    }
+    var m=document.getElementById('okmsg');
+    m.style.display='block';
+    m.textContent='已生成 '+data.length+' 箱数据，可下载或复制。';
+  }
+
+  function toCSV(){
+    var head=['客户名称','产品名称','序号','毛重','净重','管数','生产日期'];
+    var lines=[head.join(',')];
+    data.forEach(function(d){
+      lines.push([d.customer,d.product,d.idx,d.kw,d.nw,d.qt,d.pdate].join(','));
+    });
+    return '\uFEFF'+lines.join('\r\n');
+  }
+
+  function download(name, content, type){
+    var blob=new Blob([content],{type:type});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(a.href);},100);
+  }
+
+  function downloadCSV(){
+    if(!data.length){genData();}
+    if(!data.length){alert('请先填写数据');return;}
+    download('标签数据.csv', toCSV(), 'text/csv;charset=utf-8');
+  }
+
+  function downloadXlsx(){
+    if(typeof XLSX==='undefined'){alert('Excel 组件未加载，请用「下载 CSV」');return;}
+    if(!data.length){genData();}
+    if(!data.length){alert('请先填写数据');return;}
+    var arr=[['客户名称','产品名称','序号','毛重','净重','管数','生产日期']];
+    data.forEach(function(d){
+      arr.push([d.customer,d.product,parseInt(d.idx)||d.idx,parseFloat(d.kw)||d.kw,parseFloat(d.nw)||d.nw,parseInt(d.qt)||d.qt,d.pdate]);
+    });
+    var ws=XLSX.utils.aoa_to_sheet(arr);
+    var wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'标签数据');
+    XLSX.writeFile(wb,'标签数据.xlsx');
+  }
+
+  function copyData(){
+    if(!data.length){genData();}
+    if(!data.length){alert('请先填写数据');return;}
+    var text='客户名称\t产品名称\t序号\t毛重\t净重\t管数\t生产日期\n';
+    data.forEach(function(d){text+=d.customer+'\t'+d.product+'\t'+d.idx+'\t'+d.kw+'\t'+d.nw+'\t'+d.qt+'\t'+d.pdate+'\n';});
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){
+        var m=document.getElementById('okmsg');m.style.display='block';m.textContent='已复制到剪贴板，可粘贴到表格。';
+      }).catch(function(){fallbackCopy(text);});
+    }else{fallbackCopy(text);}
+  }
+  function fallbackCopy(text){
+    var ta=document.createElement('textarea');
+    ta.value=text;document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');var m=document.getElementById('okmsg');m.style.display='block';m.textContent='已复制到剪贴板。';}
+    catch(e){alert('复制失败，请手动选中文本复制');}
+    document.body.removeChild(ta);
+  }
+
+  document.getElementById('qty').addEventListener('input',function(){
+    var v=this.value;
+    document.querySelectorAll('#rows .datarow .qt').forEach(function(i){i.value=v;});
+  });
+
+  (function(){
+    document.getElementById('pdate').value=fmtDate(new Date());
+    for(var i=0;i<3;i++){addRow();}
+  })();
+</script>
+</body>
+</html>
