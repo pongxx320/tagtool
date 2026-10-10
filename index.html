@@ -75,7 +75,7 @@
     <h2><span class="tag">1</span>拍照 / 上传送货单（识别参考）</h2>
     <div class="upload">
       <label class="pick" for="file">📷 拍照或选择照片</label>
-      <input type="file" id="file" accept="image/*" capture="environment" style="display:none">
+      <input type="file" id="file" accept="image/*" style="display:none">
       <button class="btn ghost" onclick="recognize()">识别</button>
     </div>
     <img id="preview" alt="">
@@ -203,9 +203,11 @@
     if(typeof Tesseract==='undefined'){
       box.textContent='识别引擎未加载，请检查网络后刷新页面重试。'; return;
     }
-    Tesseract.recognize(f,'chi_sim',{logger:function(m){}})
+    toCanvas(f, function(cv){
+    Tesseract.recognize(cv,'chi_sim',{logger:function(m){}})
       .then(function(r){
-        var lines=r.data.lines.map(function(l){return l.text;});
+        var raw=r.data.lines||[];
+        var lines=raw.map(function(l){return l.text;});
         box.innerHTML='';
         lines.forEach(function(t){
           if(!t) return;
@@ -213,9 +215,63 @@
           d.innerHTML='<b>'+t.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</b>';
           box.appendChild(d);
         });
+        autoFill(raw);
         if(!lines.length) box.textContent='未识别到文字（照片可能太糊或方向不正）。';
       })
       .catch(function(e){ box.textContent='识别失败：'+e; });
+    });
+  }
+
+  // 图片预处理：放大 + 灰度化，提升 Tesseract 识别率
+  function toCanvas(file, cb){
+    var rd=new FileReader();
+    rd.onload=function(){
+      var img=new Image();
+      img.onload=function(){
+        var c=document.createElement('canvas');
+        var target=2200, scale=target/img.width;
+        var w=Math.round(img.width*scale), h=Math.round(img.height*scale);
+        c.width=w; c.height=h;
+        var ctx=c.getContext('2d');
+        ctx.drawImage(img,0,0,w,h);
+        var id=ctx.getImageData(0,0,w,h), d=id.data;
+        for(var i=0;i<d.length;i+=4){
+          var g=0.3*d[i]+0.59*d[i+1]+0.11*d[i+2];
+          d[i]=d[i+1]=d[i+2]=g;
+        }
+        ctx.putImageData(id,0,0);
+        cb(c);
+      };
+      img.src=rd.result;
+    };
+    rd.readAsDataURL(file);
+  }
+
+  // 识别后自动填充：客户名/产品名/重量数字（仅供参考，务必核对）
+  function autoFill(raw){
+    var allText='', weights=[];
+    raw.forEach(function(ln){
+      allText += (ln.text||'')+' ';
+      (ln.words||[]).forEach(function(w){
+        var m=(w.text||'').match(/\d+\.\d+/);
+        if(m) weights.push(parseFloat(m[0]));
+      });
+    });
+    // 客户名：从常用供应商简称匹配
+    var dict=['明阳','明雨','倍特尔','思叡力','恒伟','启昕','源之辉','捷尔达','千丝特','亿凡森','相润','致新','维特','舒美','劢润','红山纱业'];
+    for(var i=0;i<dict.length;i++){
+      if(allText.indexOf(dict[i])>=0){ document.getElementById('customer').value=(dict[i]==='明雨'?'明阳':dict[i]); break; }
+    }
+    // 产品名：找字母数字词
+    var pm=allText.match(/[A-Za-z]{1,6}[-\s]?\d{2,4}|[A-Za-z]{2,}[0-9]{2,}/);
+    if(pm) document.getElementById('product').value=pm[0];
+    // 重量数字两两配对，填入逐箱毛重/净重
+    var rows=document.getElementById('rows'); rows.innerHTML='';
+    for(var i=0;i<weights.length;i+=2){
+      addRow(weights[i], (i+1<weights.length)?weights[i+1]:'');
+    }
+    var m=document.getElementById('okmsg'); m.style.display='block';
+    m.textContent='已自动填入 '+Math.ceil(weights.length/2)+' 箱重量（仅供参考，务必对照照片核对数字）';
   }
 
   function collect(){
